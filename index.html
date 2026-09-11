@@ -5,26 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ChatMe - Secure P2P Chat</title>
 
-  <!-- PWA MANIFEST (INLINE DATA URI) -->
-  <link rel="manifest" href='data:application/manifest+json,{
-    "name": "ChatMe P2P",
-    "short_name": "ChatMe",
-    "start_url": ".",
-    "display": "standalone",
-    "background_color": "#075e54",
-    "theme_color": "#075e54",
-    "description": "Secure P2P Encrypted Chat App",
-    "icons": [
-      {
-        "src": "data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%23075e54%22/><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>",
-        "sizes": "192x192 512x512",
-        "type": "image/svg+xml",
-        "purpose": "any maskable"
-      }
-    ]
-  }'>
+  <!-- PWA MANIFEST (DATA URI BERFORMAT TEPAT) -->
+  <link rel="manifest" href='data:application/manifest+json;choice=tap,%7B%22name%22%3A%22ChatMe%20P2P%22%2C%22short_name%22%3A%22ChatMe%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23075e54%22%2C%22theme_color%22%3A%22%23075e54%22%2C%22description%22%3A%22Secure%20P2P%20Encrypted%20Chat%20App%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520100%2520100%2522%253E%253Crect%2520width%253D%2522100%2522%2520height%253D%2522100%2522%2520rx%253D%252220%2522%2520fill%253D%2522%2523075e54%2522%252F%253E%253Ctext%2520y%253D%2522.9em%2522%2520font-size%253D%252290%2522%253E%25F0%259F%2592%25AC%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22192x192%20512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%20maskable%22%7D%5D%7D'>
 
-  <!-- PWA TEMA META FOR MOBILE BROWSER -->
+  <!-- META PWA -->
   <meta name="theme-color" content="#075e54">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -36,7 +20,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- CryptoJS Library untuk AES Encryption -->
+  <!-- CryptoJS Library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
   <!-- PeerJS Library -->
@@ -177,19 +161,13 @@
   <script>
     lucide.createIcons();
 
-    // REGISTER SERVICE WORKER INLINE FOR PWA COMPLIANCE
+    // DAFTAR FAIL SERVICE WORKER SEBENAR (SW.JS)
     if ('serviceWorker' in navigator) {
-      const swCode = `
-        self.addEventListener('install', (e) => self.skipWaiting());
-        self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
-        self.addEventListener('fetch', (e) => {
-          // Pass-through fetch handler for online P2P network operations
-          e.respondWith(fetch(e.request).catch(() => new Response('Offline')));
-        });
-      `;
-      const blob = new Blob([swCode], { type: 'application/javascript' });
-      const swUrl = URL.createObjectURL(blob);
-      navigator.serviceWorker.register(swUrl).catch(() => {});
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('SW Berjaya Didaftarkan:', reg.scope))
+          .catch(err => console.log('SW Gagal:', err));
+      });
     }
 
     // PWA INSTALL PROMPT LOGIC
