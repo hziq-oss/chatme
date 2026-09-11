@@ -58,7 +58,7 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
     html, body { height: 100%; width: 100%; overflow: hidden; background: var(--bg); color: var(--text-main); }
-    body { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+    body { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; border-left: 1px solid var(--border); border-right: 1px solid var(--border); position: relative; }
 
     .app-header { background: var(--primary); color: white; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10; }
     .app-header h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
@@ -74,7 +74,10 @@
     .btn { padding: 10px 12px; font-size: 13px; font-weight: 600; background: var(--primary-dark); color: white; border: none; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; }
     .btn:active { opacity: 0.85; transform: scale(0.98); }
     .btn-accent { background: var(--accent); color: #0f172a; }
+    .btn-danger { background: var(--danger); color: white; }
     .btn-icon { padding: 10px; border-radius: 10px; width: 40px; height: 40px; }
+
+    .call-btn-group { display: flex; gap: 4px; }
 
     .contacts-bar { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px 0; scrollbar-width: none; }
     .contacts-bar::-webkit-scrollbar { display: none; }
@@ -96,6 +99,23 @@
     .chat-input-bar { background: var(--card-bg); padding: 8px 12px; display: flex; gap: 6px; align-items: center; border-top: 1px solid var(--border); flex-shrink: 0; }
     .chat-input-bar input[type="text"] { border-radius: 20px; padding: 10px 14px; }
     .empty-state { margin: auto; text-align: center; color: var(--text-muted); font-size: 13px; padding: 0 20px; }
+
+    /* MODAL PRATONTON GAMBAR */
+    .image-modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.9); z-index: 100; justify-content: center; align-items: center; padding: 20px; }
+    .image-modal img { max-width: 100%; max-height: 90vh; border-radius: 8px; object-fit: contain; }
+    .image-modal-close { position: absolute; top: 16px; right: 16px; color: white; background: rgba(255, 255, 255, 0.2); border: none; border-radius: 50%; padding: 8px; cursor: pointer; display: flex; }
+
+    /* MODAL PANGGILAN SUARA / VIDEO */
+    .call-overlay { display: none; position: fixed; inset: 0; background: #0f172a; z-index: 90; flex-direction: column; justify-content: space-between; padding: 24px 16px; align-items: center; color: white; }
+    .call-info { text-align: center; margin-top: 40px; }
+    .call-info h2 { font-size: 22px; margin-bottom: 8px; }
+    .call-status { font-size: 14px; color: #94a3b8; }
+    .video-container { width: 100%; height: 60vh; position: relative; background: #1e293b; border-radius: 16px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+    video { width: 100%; height: 100%; object-fit: cover; }
+    #remote-video { width: 100%; height: 100%; }
+    #local-video { width: 100px; height: 140px; position: absolute; bottom: 12px; right: 12px; border-radius: 8px; border: 2px solid white; background: #000; }
+    .call-controls { display: flex; gap: 20px; margin-bottom: 20px; }
+    .call-btn-large { width: 60px; height: 60px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; font-size: 20px; }
   </style>
 </head>
 <body>
@@ -118,6 +138,14 @@
       <button class="btn btn-accent" onclick="connectToPeer()">
         <i data-lucide="wifi"></i> <span>Sambung</span>
       </button>
+      <div class="call-btn-group">
+        <button class="btn btn-icon btn-accent" title="Panggilan Suara" onclick="startCall(false)">
+          <i data-lucide="phone"></i>
+        </button>
+        <button class="btn btn-icon btn-accent" title="Panggilan Video" onclick="startCall(true)">
+          <i data-lucide="video"></i>
+        </button>
+      </div>
       <button class="btn btn-icon" title="Simpan Kontak" onclick="saveCurrentContact()">
         <i data-lucide="user-plus"></i>
       </button>
@@ -155,6 +183,31 @@
     </button>
   </div>
 
+  <!-- MODAL POPUP PRATONTON GAMBAR -->
+  <div class="image-modal" id="image-modal" onclick="closeImageModal()">
+    <button class="image-modal-close" onclick="closeImageModal()"><i data-lucide="x"></i></button>
+    <img id="modal-img" src="" alt="Pratonton Gambar">
+  </div>
+
+  <!-- OVERLAY PANGGILAN SUARA / VIDEO -->
+  <div class="call-overlay" id="call-overlay">
+    <div class="call-info">
+      <h2 id="call-peer-id">Rakan</h2>
+      <div class="call-status" id="call-status-text">Menghubungi...</div>
+    </div>
+
+    <div class="video-container" id="video-container" style="display:none;">
+      <video id="remote-video" autoplay playsinline></video>
+      <video id="local-video" autoplay playsinline muted></video>
+    </div>
+
+    <div class="call-controls">
+      <button class="call-btn-large btn-danger" onclick="endCall()" title="Tamatkan Panggilan">
+        <i data-lucide="phone-off"></i>
+      </button>
+    </div>
+  </div>
+
   <script>
     lucide.createIcons();
 
@@ -183,6 +236,7 @@
 
     const peerPrefix = "chatme-p2p-v2-";
     let myPin = "", peer = null, conn = null, currentActivePin = "";
+    let currentCall = null, localStream = null;
 
     const STORAGE_CONTACTS = "chatme_saved_contacts";
     const STORAGE_CHAT_PREFIX = "chatme_history_";
@@ -204,10 +258,29 @@
         loadChatHistory(currentActivePin);
       });
 
+      // PENGENDALIAN PANGGILAN MASUK (INCOMING CALL)
+      peer.on('call', async (call) => {
+        const callerPin = call.peer.replace(peerPrefix, '');
+        const isVideo = call.metadata && call.metadata.isVideo;
+
+        if (confirm(`Panggilan ${isVideo ? 'Video' : 'Suara'} daripada ${callerPin}. Terima?`)) {
+          try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo });
+            call.answer(localStream);
+            currentCall = call;
+            showCallOverlay(callerPin, isVideo);
+            setupCallListeners(call, isVideo);
+          } catch (err) {
+            alert("Gagal mengakses mikrafon/kamera peranti.");
+          }
+        } else {
+          call.close();
+        }
+      });
+
       peer.on('error', (err) => updateStatus("Ralat: " + err.type));
       renderContacts();
 
-      // AUTO-RETRY LOOP (Cuba hantar mesej pending secara berkala)
       setInterval(() => {
         if (currentActivePin) {
           checkAndResendPendingMessages(currentActivePin);
@@ -240,20 +313,78 @@
       });
 
       conn.on('data', (data) => {
-        // TERIMA MESEJ
         if (data.type === 'chat' || data.type === 'image') {
           saveAndDisplayMessage(data.msgId, data.payload, data.type, 'received', currentActivePin, 'delivered');
-          // HANTAR AKUAN PENERIMAAN (ACK) BACK TO SENDER
           conn.send({ type: 'ack', msgId: data.msgId });
-        } 
-        // TERIMA AKUAN PENERIMAAN (ACK)
-        else if (data.type === 'ack') {
+        } else if (data.type === 'ack') {
           markMessageAsDelivered(currentActivePin, data.msgId);
         }
       });
 
       conn.on('close', () => { updateStatus("Sambungan terputus."); });
       conn.on('error', () => { updateStatus("Ralat sambungan."); });
+    }
+
+    /* PANGGILAN SUARA DAN VIDEO */
+    async function startCall(isVideo) {
+      const pin = currentActivePin || document.getElementById('target-pin').value.trim();
+      if (!pin) return alert("Masukkan ID rakan sebelum membuat panggilan.");
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo });
+        showCallOverlay(pin, isVideo);
+
+        const call = peer.call(peerPrefix + pin, localStream, { metadata: { isVideo } });
+        currentCall = call;
+        setupCallListeners(call, isVideo);
+      } catch (err) {
+        alert("Gagal mengakses mikrafon/kamera: " + err.message);
+      }
+    }
+
+    function setupCallListeners(call, isVideo) {
+      call.on('stream', (remoteStream) => {
+        document.getElementById('call-status-text').innerText = "Tersambung";
+        if (isVideo) {
+          document.getElementById('remote-video').srcObject = remoteStream;
+          document.getElementById('local-video').srcObject = localStream;
+        } else {
+          const audio = new Audio();
+          audio.srcObject = remoteStream;
+          audio.play();
+        }
+      });
+
+      call.on('close', () => endCall());
+      call.on('error', () => endCall());
+    }
+
+    function showCallOverlay(pin, isVideo) {
+      document.getElementById('call-peer-id').innerText = pin;
+      document.getElementById('call-status-text').innerText = "Menghubungi...";
+      document.getElementById('call-overlay').style.display = 'flex';
+      document.getElementById('video-container').style.display = isVideo ? 'flex' : 'none';
+    }
+
+    function endCall() {
+      if (currentCall) { currentCall.close(); currentCall = null; }
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+      document.getElementById('call-overlay').style.display = 'none';
+    }
+
+    /* MODAL POPUP PRATONTON GAMBAR */
+    function openImageModal(imgData) {
+      const modal = document.getElementById('image-modal');
+      const modalImg = document.getElementById('modal-img');
+      modalImg.src = imgData;
+      modal.style.display = 'flex';
+    }
+
+    function closeImageModal() {
+      document.getElementById('image-modal').style.display = 'none';
     }
 
     function checkAndResendPendingMessages(pin) {
@@ -365,7 +496,6 @@
       const historyKey = STORAGE_CHAT_PREFIX + pin;
       let history = JSON.parse(localStorage.getItem(historyKey) || "[]");
 
-      // Elak rekod berganda bagi penerima
       if (history.some(m => m.msgId === msgId)) return;
 
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -407,7 +537,7 @@
           const imgNode = document.createElement('img');
           imgNode.src = decryptedData;
           imgNode.className = 'chat-img-content';
-          imgNode.onclick = () => window.open(decryptedData, '_blank');
+          imgNode.onclick = () => openImageModal(decryptedData);
           bubble.appendChild(imgNode);
         } else {
           const errNode = document.createElement('div');
