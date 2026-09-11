@@ -64,7 +64,6 @@
     .app-header h1 { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
     .header-actions { display: flex; align-items: center; gap: 4px; }
     .my-id-badge { font-size: 10px; background: rgba(255, 255, 255, 0.18); padding: 3px 8px; border-radius: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer; }
-    
     .install-btn { font-size: 10px; background: var(--accent); color: #0f172a; padding: 3px 8px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer; display: none; align-items: center; gap: 4px; }
 
     .controls-card { background: var(--card-bg); padding: 6px 8px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
@@ -95,7 +94,12 @@
     .chat-bubble.received { align-self: flex-start; background: var(--chat-rcvd); color: var(--chat-rcvd-text); border-bottom-left-radius: 2px; }
     .chat-text-content { white-space: pre-wrap; }
     .chat-img-content { max-width: 100%; max-height: 200px; border-radius: 6px; margin-top: 3px; display: block; cursor: pointer; }
+    .chat-video-content { max-width: 100%; max-height: 220px; border-radius: 6px; margin-top: 3px; display: block; }
     .chat-audio-content { width: 100%; max-width: 210px; margin-top: 3px; }
+
+    /* VIDEO NOTE (BULAT ALA TELEGRAM) */
+    .video-note-bubble { width: 160px; height: 160px; border-radius: 50%; overflow: hidden; position: relative; border: 3px solid var(--accent); background: #000; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+    .video-note-bubble video { width: 100%; height: 100%; object-fit: cover; }
 
     .chat-meta { display: flex; justify-content: flex-end; align-items: center; gap: 3px; font-size: 9px; color: var(--text-muted); margin-top: 3px; }
     .chat-input-bar { background: var(--card-bg); padding: 6px 8px; display: flex; gap: 4px; align-items: center; border-top: 1px solid var(--border); flex-shrink: 0; }
@@ -106,12 +110,19 @@
     .recording-dot { width: 8px; height: 8px; background: var(--danger); border-radius: 50%; animation: blink 1s infinite; }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-    /* MODAL PRATONTON GAMBAR */
+    /* MODAL POPUP PRATONTON MEDIA */
     .image-modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.9); z-index: 100; justify-content: center; align-items: center; padding: 16px; }
-    .image-modal img { max-width: 100%; max-height: 90vh; border-radius: 6px; object-fit: contain; }
+    .image-modal img, .image-modal video { max-width: 100%; max-height: 90vh; border-radius: 6px; object-fit: contain; }
     .image-modal-close { position: absolute; top: 12px; right: 12px; color: white; background: rgba(255, 255, 255, 0.2); border: none; border-radius: 50%; padding: 6px; cursor: pointer; display: flex; }
 
-    /* MODAL PANGGILAN SUARA / VIDEO */
+    /* CAMERA & VIDEO RECORDING MODAL */
+    .camera-modal { display: none; position: fixed; inset: 0; background: #000; z-index: 110; flex-direction: column; justify-content: space-between; padding: 16px; }
+    .camera-preview-container { width: 100%; height: 75vh; position: relative; background: #111; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .camera-preview-container video { width: 100%; height: 100%; object-fit: cover; }
+    .camera-controls { display: flex; justify-content: space-around; align-items: center; padding: 10px 0; }
+    .cam-btn-round { width: 56px; height: 56px; border-radius: 50%; border: 3px solid white; background: var(--danger); color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+    /* OVERLAY PANGGILAN SUARA / VIDEO */
     .call-overlay { display: none; position: fixed; inset: 0; background: #0f172a; z-index: 90; flex-direction: column; justify-content: space-between; padding: 20px 12px; align-items: center; color: white; }
     .call-info { text-align: center; margin-top: 30px; }
     .call-info h2 { font-size: 18px; margin-bottom: 6px; }
@@ -178,9 +189,18 @@
   </div>
 
   <div class="chat-input-bar">
-    <input type="file" id="image-input" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
-    <button class="btn btn-icon" style="background: var(--bg); color: var(--text-main);" title="Hantar Gambar" onclick="document.getElementById('image-input').click()">
-      <i data-lucide="image" style="width:14px;"></i>
+    <input type="file" id="image-input" accept="image/*,video/*" style="display: none;" onchange="handleFileUpload(event)">
+    
+    <button class="btn btn-icon" style="background: var(--bg); color: var(--text-main);" title="Pilih Gambar / Video" onclick="document.getElementById('image-input').click()">
+      <i data-lucide="paperclip" style="width:14px;"></i>
+    </button>
+
+    <button class="btn btn-icon" style="background: var(--bg); color: var(--text-main);" title="Ambil Gambar / Video Terus" onclick="openCameraModal('standard')">
+      <i data-lucide="camera" style="width:14px;"></i>
+    </button>
+
+    <button class="btn btn-icon" style="background: var(--bg); color: var(--text-main);" title="Rakam Video Note" onclick="openCameraModal('vnote')">
+      <i data-lucide="video" style="width:14px;"></i>
     </button>
 
     <button id="voice-rec-btn" class="btn btn-icon" style="background: var(--bg); color: var(--text-main);" title="Rakam Nota Suara" onclick="toggleVoiceRecording()">
@@ -188,7 +208,7 @@
     </button>
 
     <div class="recording-indicator" id="recording-indicator">
-      <div class="recording-dot"></div> Merakam suara...
+      <div class="recording-dot"></div> Merakam...
     </div>
     
     <input type="text" id="chat-input" placeholder="Taip mesej..." onkeypress="handleKeyPress(event)">
@@ -197,10 +217,22 @@
     </button>
   </div>
 
-  <!-- MODAL POPUP PRATONTON GAMBAR -->
+  <!-- MODAL CAMERA / VIDEO NOTE -->
+  <div class="camera-modal" id="camera-modal">
+    <div class="camera-preview-container">
+      <video id="camera-stream-preview" autoplay playsinline muted></video>
+    </div>
+    <div class="camera-controls">
+      <button class="btn btn-danger" onclick="closeCameraModal()">Batal</button>
+      <button class="cam-btn-round" id="snap-btn" onclick="captureCameraMedia()"><i data-lucide="aperture" style="width:24px; height:24px;"></i></button>
+      <button class="btn btn-accent" id="rec-video-btn" onclick="toggleVideoRecording()">Rakam Clip</button>
+    </div>
+  </div>
+
+  <!-- MODAL POPUP PRATONTON GAMBAR & VIDEO -->
   <div class="image-modal" id="image-modal" onclick="closeImageModal()">
     <button class="image-modal-close" onclick="closeImageModal()"><i data-lucide="x" style="width:14px;"></i></button>
-    <img id="modal-img" src="" alt="Pratonton Gambar">
+    <div id="modal-media-container"></div>
   </div>
 
   <!-- OVERLAY PANGGILAN SUARA / VIDEO -->
@@ -259,14 +291,14 @@
     let currentCall = null, localStream = null;
     let isMuted = false, currentFacingMode = "user";
 
-    // PERAKAM SUARA (VOICE NOTE)
-    let mediaRecorder = null, audioChunks = [];
+    // PERAKAM SUARA & VIDEO
+    let mediaRecorder = null, audioChunks = [], cameraStream = null, cameraMode = 'standard';
+    let videoChunks = [];
 
     const STORAGE_CONTACTS = "chatme_saved_contacts";
     const STORAGE_CHAT_PREFIX = "chatme_history_";
     const STORAGE_UNREAD_PREFIX = "chatme_unread_";
 
-    // SYNTHETIC AUDIO CHIME (BUNYI NOTIFIKASI)
     function playChime(type) {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -308,7 +340,6 @@
         loadChatHistory(currentActivePin);
       });
 
-      // PENGENDALIAN PANGGILAN MASUK (INCOMING CALL)
       peer.on('call', async (call) => {
         const callerPin = call.peer.replace(peerPrefix, '');
         const isVideo = call.metadata && call.metadata.isVideo;
@@ -324,7 +355,6 @@
             alert("Gagal mengakses mikrafon/kamera peranti.");
           }
         } else {
-          // CALL REJECTED
           if (conn && conn.open) {
             conn.send({ type: 'call_rejected' });
           }
@@ -368,7 +398,7 @@
       });
 
       conn.on('data', (data) => {
-        if (data.type === 'chat' || data.type === 'image' || data.type === 'audio') {
+        if (['chat', 'image', 'audio', 'video', 'vnote'].includes(data.type)) {
           saveAndDisplayMessage(data.msgId, data.payload, data.type, 'received', currentActivePin, 'delivered');
           conn.send({ type: 'ack', msgId: data.msgId });
           playChime('received');
@@ -388,7 +418,6 @@
       conn.on('error', () => { updateStatus("Ralat sambungan."); });
     }
 
-    /* UNREAD COUNTER MANAGEMENT */
     function incrementUnreadCounter(pin) {
       let count = parseInt(localStorage.getItem(STORAGE_UNREAD_PREFIX + pin) || "0");
       count++;
@@ -488,6 +517,88 @@
       document.getElementById('mute-btn').style.background = '#334155';
     }
 
+    /* AKSI AMBIL GAMBAR & RAKAM VIDEO */
+    async function openCameraModal(mode = 'standard') {
+      const pin = currentActivePin || document.getElementById('target-pin').value.trim();
+      if (!pin) return alert("Masukkan ID rakan terlebih dahulu!");
+
+      cameraMode = mode;
+      document.getElementById('camera-modal').style.display = 'flex';
+
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: 'user' } });
+        document.getElementById('camera-stream-preview').srcObject = cameraStream;
+      } catch (e) {
+        alert("Tidak dapat mengakses kamera peranti.");
+        closeCameraModal();
+      }
+    }
+
+    function closeCameraModal() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+      }
+      document.getElementById('camera-modal').style.display = 'none';
+    }
+
+    function captureCameraMedia() {
+      const video = document.getElementById('camera-stream-preview');
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const base64Img = canvas.toDataURL('image/jpeg', 0.8);
+      sendMediaPayload(base64Img, 'image');
+      closeCameraModal();
+    }
+
+    function toggleVideoRecording() {
+      const btn = document.getElementById('rec-video-btn');
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        btn.innerText = "Rakam Clip";
+        btn.style.background = "var(--accent)";
+        return;
+      }
+
+      videoChunks = [];
+      mediaRecorder = new MediaRecorder(cameraStream);
+      mediaRecorder.ondataavailable = e => videoChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const type = (cameraMode === 'vnote') ? 'vnote' : 'video';
+          sendMediaPayload(evt.target.result, type);
+          closeCameraModal();
+        };
+        reader.readAsDataURL(videoBlob);
+      };
+
+      mediaRecorder.start();
+      btn.innerText = "Berhenti & Hantar";
+      btn.style.background = "var(--danger)";
+    }
+
+    function sendMediaPayload(base64Data, msgType) {
+      const pin = currentActivePin || document.getElementById('target-pin').value.trim();
+      const secretKey = document.getElementById('secret-key').value;
+      const msgId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+      const payload = encryptData(base64Data, secretKey);
+
+      saveAndDisplayMessage(msgId, payload, msgType, 'sent', pin, 'pending');
+
+      if (conn && conn.open && currentActivePin === pin) {
+        conn.send({ type: msgType, msgId, payload, senderPin: myPin });
+      } else {
+        connectToPeer(pin);
+      }
+      playChime('sent');
+    }
+
     /* RECORD VOICE NOTE */
     async function toggleVoiceRecording() {
       const pin = currentActivePin || document.getElementById('target-pin').value.trim();
@@ -508,19 +619,7 @@
           const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
           const reader = new FileReader();
           reader.onload = function(evt) {
-            const base64Audio = evt.target.result;
-            const secretKey = document.getElementById('secret-key').value;
-            const msgId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
-            const payload = encryptData(base64Audio, secretKey);
-
-            saveAndDisplayMessage(msgId, payload, 'audio', 'sent', pin, 'pending');
-
-            if (conn && conn.open && currentActivePin === pin) {
-              conn.send({ type: 'audio', msgId, payload, senderPin: myPin });
-            } else {
-              connectToPeer(pin);
-            }
-            playChime('sent');
+            sendMediaPayload(evt.target.result, 'audio');
           };
           reader.readAsDataURL(audioBlob);
 
@@ -537,16 +636,28 @@
       }
     }
 
-    /* MODAL POPUP PRATONTON GAMBAR */
-    function openImageModal(imgData) {
+    function openMediaModal(src, type) {
       const modal = document.getElementById('image-modal');
-      const modalImg = document.getElementById('modal-img');
-      modalImg.src = imgData;
+      const container = document.getElementById('modal-media-container');
+      container.innerHTML = '';
+
+      if (type === 'image') {
+        const img = document.createElement('img');
+        img.src = src;
+        container.appendChild(img);
+      } else if (type === 'video' || type === 'vnote') {
+        const video = document.createElement('video');
+        video.src = src;
+        video.controls = true;
+        video.autoplay = true;
+        container.appendChild(video);
+      }
       modal.style.display = 'flex';
     }
 
     function closeImageModal() {
       document.getElementById('image-modal').style.display = 'none';
+      document.getElementById('modal-media-container').innerHTML = '';
     }
 
     function checkAndResendPendingMessages(pin) {
@@ -624,31 +735,20 @@
       input.value = '';
     }
 
-    function handleImageUpload(e) {
+    function handleFileUpload(e) {
       const file = e.target.files[0];
       const pin = currentActivePin || document.getElementById('target-pin').value.trim();
       if (!file || !pin) return;
 
-      if (file.size > 2 * 1024 * 1024) {
-        alert("Saiz gambar melebihi 2MB. Sila pilih gambar yang lebih kecil.");
+      if (file.size > 8 * 1024 * 1024) {
+        alert("Saiz fail melebihi 8MB.");
         return;
       }
 
+      const isVideo = file.type.startsWith('video');
       const reader = new FileReader();
       reader.onload = function(evt) {
-        const base64Img = evt.target.result;
-        const secretKey = document.getElementById('secret-key').value;
-        const msgId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
-        const payload = encryptData(base64Img, secretKey);
-
-        saveAndDisplayMessage(msgId, payload, 'image', 'sent', pin, 'pending');
-
-        if (conn && conn.open && currentActivePin === pin) {
-          conn.send({ type: 'image', msgId, payload, senderPin: myPin });
-        } else {
-          connectToPeer(pin);
-        }
-        playChime('sent');
+        sendMediaPayload(evt.target.result, isVideo ? 'video' : 'image');
       };
       reader.readAsDataURL(file);
       e.target.value = '';
@@ -701,8 +801,38 @@
           const imgNode = document.createElement('img');
           imgNode.src = decryptedData;
           imgNode.className = 'chat-img-content';
-          imgNode.onclick = () => openImageModal(decryptedData);
+          imgNode.onclick = () => openMediaModal(decryptedData, 'image');
           bubble.appendChild(imgNode);
+        } else {
+          const errNode = document.createElement('div');
+          errNode.className = 'chat-text-content';
+          errNode.textContent = decryptedData;
+          bubble.appendChild(errNode);
+        }
+      } else if (msg.msgType === 'video') {
+        if (decryptedData.startsWith("data:video")) {
+          const videoNode = document.createElement('video');
+          videoNode.src = decryptedData;
+          videoNode.controls = true;
+          videoNode.className = 'chat-video-content';
+          bubble.appendChild(videoNode);
+        } else {
+          const errNode = document.createElement('div');
+          errNode.className = 'chat-text-content';
+          errNode.textContent = decryptedData;
+          bubble.appendChild(errNode);
+        }
+      } else if (msg.msgType === 'vnote') {
+        if (decryptedData.startsWith("data:video")) {
+          const vnoteWrapper = document.createElement('div');
+          vnoteWrapper.className = 'video-note-bubble';
+          const videoNode = document.createElement('video');
+          videoNode.src = decryptedData;
+          videoNode.autoplay = false;
+          videoNode.controls = true;
+          videoNode.playsinline = true;
+          vnoteWrapper.appendChild(videoNode);
+          bubble.appendChild(vnoteWrapper);
         } else {
           const errNode = document.createElement('div');
           errNode.className = 'chat-text-content';
