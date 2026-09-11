@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ChatMe - Secure P2P Chat</title>
 
-  <!-- PWA MANIFEST (DATA URI BERFORMAT TEPAT) -->
+  <!-- PWA MANIFEST -->
   <link rel="manifest" href='data:application/manifest+json;choice=tap,%7B%22name%22%3A%22ChatMe%20P2P%22%2C%22short_name%22%3A%22ChatMe%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23075e54%22%2C%22theme_color%22%3A%22%23075e54%22%2C%22description%22%3A%22Secure%20P2P%20Encrypted%20Chat%20App%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520100%2520100%2522%253E%253Crect%2520width%253D%2522100%2522%2520height%253D%2522100%2522%2520rx%253D%252220%2522%2520fill%253D%2522%2523075e54%2522%252F%253E%253Ctext%2520y%253D%2522.9em%2522%2520font-size%253D%252290%2522%253E%25F0%259F%2592%25AC%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22192x192%20512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%20maskable%22%7D%5D%7D'>
 
-  <!-- META PWA -->
   <meta name="theme-color" content="#075e54">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -92,6 +91,7 @@
     .chat-bubble { max-width: 82%; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.45; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
     .chat-bubble.sent { align-self: flex-end; background: var(--chat-sent); color: var(--chat-sent-text); border-bottom-right-radius: 2px; }
     .chat-bubble.received { align-self: flex-start; background: var(--chat-rcvd); color: var(--chat-rcvd-text); border-bottom-left-radius: 2px; }
+    .chat-bubble.pending { opacity: 0.6; }
     .chat-text-content { white-space: pre-wrap; }
     .chat-img-content { max-width: 100%; max-height: 240px; border-radius: 8px; margin-top: 4px; display: block; cursor: pointer; }
 
@@ -152,8 +152,8 @@
       <i data-lucide="image"></i>
     </button>
     
-    <input type="text" id="chat-input" placeholder="Taip mesej..." disabled onkeypress="handleKeyPress(event)">
-    <button id="send-btn" class="btn btn-accent btn-icon" disabled onclick="sendMessage()">
+    <input type="text" id="chat-input" placeholder="Taip mesej..." onkeypress="handleKeyPress(event)">
+    <button id="send-btn" class="btn btn-accent btn-icon" onclick="sendMessage()">
       <i data-lucide="send"></i>
     </button>
   </div>
@@ -161,16 +161,12 @@
   <script>
     lucide.createIcons();
 
-    // DAFTAR FAIL SERVICE WORKER SEBENAR (SW.JS)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('SW Berjaya Didaftarkan:', reg.scope))
-          .catch(err => console.log('SW Gagal:', err));
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
       });
     }
 
-    // PWA INSTALL PROMPT LOGIC
     let deferredPrompt = null;
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -193,6 +189,7 @@
 
     const STORAGE_CONTACTS = "chatme_saved_contacts";
     const STORAGE_CHAT_PREFIX = "chatme_history_";
+    const STORAGE_PENDING_PREFIX = "chatme_pending_";
 
     function initApp() {
       myPin = localStorage.getItem('chatme_my_pin') || generateSecureId();
@@ -201,15 +198,17 @@
 
       peer = new Peer(peerPrefix + myPin);
       peer.on('open', () => updateStatus("Sedia untuk berhubung."));
+      
       peer.on('connection', (c) => {
         conn = c;
         currentActivePin = c.peer.replace(peerPrefix, '');
         document.getElementById('target-pin').value = currentActivePin;
         setupConnectionListeners();
-        enableChatInput();
         updateStatus("Tersambung: " + currentActivePin);
         loadChatHistory(currentActivePin);
+        flushPendingQueue(currentActivePin);
       });
+
       peer.on('error', (err) => updateStatus("Ralat: " + err.type));
       renderContacts();
     }
@@ -233,14 +232,32 @@
     }
 
     function setupConnectionListeners() {
-      conn.on('open', () => { enableChatInput(); updateStatus("Tersambung: " + currentActivePin); });
+      conn.on('open', () => {
+        updateStatus("Tersambung: " + currentActivePin);
+        flushPendingQueue(currentActivePin);
+      });
+
       conn.on('data', (data) => {
         if (data.type === 'chat' || data.type === 'image') {
           saveAndDisplayMessage(data.payload, data.type, 'received', currentActivePin);
         }
       });
-      conn.on('close', () => { disableChatInput(); updateStatus("Sambungan terputus."); });
-      conn.on('error', () => { disableChatInput(); updateStatus("Ralat sambungan."); });
+
+      conn.on('close', () => { updateStatus("Sambungan terputus."); });
+      conn.on('error', () => { updateStatus("Ralat sambungan."); });
+    }
+
+    function flushPendingQueue(pin) {
+      const pendingKey = STORAGE_PENDING_PREFIX + pin;
+      let pendingList = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+      
+      if (pendingList.length > 0 && conn && conn.open) {
+        pendingList.forEach(item => {
+          conn.send({ type: item.msgType, payload: item.payload });
+        });
+        localStorage.removeItem(pendingKey);
+        loadChatHistory(pin);
+      }
     }
 
     function encryptData(dataStr, secretKey) {
@@ -263,17 +280,35 @@
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
       const secretKey = document.getElementById('secret-key').value;
-      if (!text || !conn) return;
+      const pin = currentActivePin || document.getElementById('target-pin').value.trim();
+
+      if (!text || !pin) return alert("Sila masukkan ID rakan dan mesej!");
 
       const payload = encryptData(text, secretKey);
-      conn.send({ type: 'chat', payload });
-      saveAndDisplayMessage(payload, 'chat', 'sent', currentActivePin);
+
+      if (conn && conn.open && currentActivePin === pin) {
+        conn.send({ type: 'chat', payload });
+        saveAndDisplayMessage(payload, 'chat', 'sent', pin, false);
+      } else {
+        saveAndDisplayMessage(payload, 'chat', 'sent', pin, true);
+        queuePendingMessage(pin, 'chat', payload);
+        connectToPeer(pin);
+      }
+
       input.value = '';
+    }
+
+    function queuePendingMessage(pin, msgType, payload) {
+      const pendingKey = STORAGE_PENDING_PREFIX + pin;
+      let pendingList = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+      pendingList.push({ msgType, payload });
+      localStorage.setItem(pendingKey, JSON.stringify(pendingList));
     }
 
     function handleImageUpload(e) {
       const file = e.target.files[0];
-      if (!file || !conn) return;
+      const pin = currentActivePin || document.getElementById('target-pin').value.trim();
+      if (!file || !pin) return;
 
       if (file.size > 2 * 1024 * 1024) {
         alert("Saiz gambar melebihi 2MB. Sila pilih gambar yang lebih kecil.");
@@ -286,8 +321,14 @@
         const secretKey = document.getElementById('secret-key').value;
         const payload = encryptData(base64Img, secretKey);
 
-        conn.send({ type: 'image', payload });
-        saveAndDisplayMessage(payload, 'image', 'sent', currentActivePin);
+        if (conn && conn.open && currentActivePin === pin) {
+          conn.send({ type: 'image', payload });
+          saveAndDisplayMessage(payload, 'image', 'sent', pin, false);
+        } else {
+          saveAndDisplayMessage(payload, 'image', 'sent', pin, true);
+          queuePendingMessage(pin, 'image', payload);
+          connectToPeer(pin);
+        }
       };
       reader.readAsDataURL(file);
       e.target.value = '';
@@ -295,9 +336,9 @@
 
     function handleKeyPress(e) { if (e.key === 'Enter') sendMessage(); }
 
-    function saveAndDisplayMessage(payload, msgType, direction, pin) {
+    function saveAndDisplayMessage(payload, msgType, direction, pin, isPending = false) {
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const msgObj = { payload, msgType, direction, time: timeStr };
+      const msgObj = { payload, msgType, direction, time: timeStr, isPending };
 
       const historyKey = STORAGE_CHAT_PREFIX + pin;
       let history = JSON.parse(localStorage.getItem(historyKey) || "[]");
@@ -330,7 +371,7 @@
       const decryptedData = decryptData(msg.payload, secretKey);
 
       const bubble = document.createElement('div');
-      bubble.className = `chat-bubble ${msg.direction}`;
+      bubble.className = `chat-bubble ${msg.direction} ${msg.isPending ? 'pending' : ''}`;
 
       if (msg.msgType === 'image') {
         if (decryptedData.startsWith("data:image")) {
@@ -354,7 +395,8 @@
 
       const metaNode = document.createElement('div');
       metaNode.className = 'chat-meta';
-      metaNode.innerHTML = `<span>${msg.time}</span>${msg.direction === 'sent' ? '<i data-lucide="check-check"></i>' : ''}`;
+      const statusIcon = msg.isPending ? '<i data-lucide="clock"></i>' : (msg.direction === 'sent' ? '<i data-lucide="check-check"></i>' : '');
+      metaNode.innerHTML = `<span>${msg.time}</span> ${statusIcon}`;
       bubble.appendChild(metaNode);
 
       chatWindow.appendChild(bubble);
@@ -366,6 +408,7 @@
       if (!currentActivePin) return;
       if (confirm(`Padam sejarah chat bagi ID ${currentActivePin}?`)) {
         localStorage.removeItem(STORAGE_CHAT_PREFIX + currentActivePin);
+        localStorage.removeItem(STORAGE_PENDING_PREFIX + currentActivePin);
         loadChatHistory(currentActivePin);
       }
     }
@@ -427,16 +470,6 @@
         contactsBar.appendChild(chip);
       });
       lucide.createIcons();
-    }
-
-    function enableChatInput() {
-      document.getElementById('chat-input').disabled = false;
-      document.getElementById('send-btn').disabled = false;
-    }
-
-    function disableChatInput() {
-      document.getElementById('chat-input').disabled = true;
-      document.getElementById('send-btn').disabled = true;
     }
 
     function updateStatus(msg) {
