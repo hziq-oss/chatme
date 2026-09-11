@@ -1,1 +1,409 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ChatMe - Secure P2P Chat</title>
+
+  <!-- Font & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- CryptoJS Library untuk AES Encryption -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+  <!-- PeerJS Library -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #075e54;
+      --primary-dark: #128c7e;
+      --accent: #25d366;
+      --bg: #f0f2f5;
+      --card-bg: #ffffff;
+      --text-main: #111b21;
+      --text-muted: #667781;
+      --border: #e9edef;
+      --chat-sent: #dcf8c6;
+      --chat-sent-text: #111b21;
+      --chat-rcvd: #ffffff;
+      --chat-rcvd-text: #111b21;
+      --chat-bg: #efeae2;
+      --danger: #ea4335;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0c1317;
+        --card-bg: #111b21;
+        --text-main: #e9edef;
+        --text-muted: #8696a0;
+        --border: #222d34;
+        --chat-sent: #005c4b;
+        --chat-sent-text: #e9edef;
+        --chat-rcvd: #202c33;
+        --chat-rcvd-text: #e9edef;
+        --chat-bg: #0b141a;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    html, body { height: 100%; width: 100%; overflow: hidden; background: var(--bg); color: var(--text-main); }
+    body { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+
+    .app-header { background: var(--primary); color: white; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10; }
+    .app-header h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .my-id-badge { font-size: 11px; background: rgba(255, 255, 255, 0.18); padding: 4px 10px; border-radius: 16px; font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+    .controls-card { background: var(--card-bg); padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+    .input-group { display: flex; gap: 6px; align-items: center; width: 100%; }
+    input[type="text"], input[type="password"] { flex: 1; min-width: 0; padding: 10px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-main); outline: none; }
+
+    .btn { padding: 10px 12px; font-size: 13px; font-weight: 600; background: var(--primary-dark); color: white; border: none; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; }
+    .btn:active { opacity: 0.85; transform: scale(0.98); }
+    .btn-accent { background: var(--accent); color: #0f172a; }
+    .btn-icon { padding: 10px; border-radius: 10px; width: 40px; height: 40px; }
+
+    .contacts-bar { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px 0; scrollbar-width: none; }
+    .contacts-bar::-webkit-scrollbar { display: none; }
+    .contact-chip { background: var(--bg); border: 1px solid var(--border); padding: 6px 10px; border-radius: 16px; font-size: 12px; white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .contact-chip.active { background: var(--primary-dark); color: white; border-color: var(--primary-dark); }
+    .delete-contact-btn { border: none; background: transparent; color: inherit; opacity: 0.6; margin-left: 2px; cursor: pointer; border-radius: 50%; padding: 2px; display: inline-flex; }
+
+    .status-bar { background: var(--card-bg); font-size: 11px; padding: 6px 12px; color: var(--text-muted); border-bottom: 1px solid var(--border); display: flex; justify-space-between; align-items: center; flex-shrink: 0; }
+    .clear-btn { background: none; border: none; color: var(--danger); font-size: 11px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+
+    .chat-window { flex: 1; background: var(--chat-bg); padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .chat-bubble { max-width: 82%; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.45; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .chat-bubble.sent { align-self: flex-end; background: var(--chat-sent); color: var(--chat-sent-text); border-bottom-right-radius: 2px; }
+    .chat-bubble.received { align-self: flex-start; background: var(--chat-rcvd); color: var(--chat-rcvd-text); border-bottom-left-radius: 2px; }
+    .chat-text-content { white-space: pre-wrap; }
+    
+    /* GAYA GAMBAR */
+    .chat-img-content { max-width: 100%; max-height: 240px; border-radius: 8px; margin-top: 4px; display: block; cursor: pointer; }
+
+    .chat-meta { display: flex; justify-content: flex-end; align-items: center; gap: 4px; font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+    .chat-input-bar { background: var(--card-bg); padding: 8px 12px; display: flex; gap: 6px; align-items: center; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .chat-input-bar input[type="text"] { border-radius: 20px; padding: 10px 14px; }
+    .empty-state { margin: auto; text-align: center; color: var(--text-muted); font-size: 13px; padding: 0 20px; }
+  </style>
+</head>
+<body>
+
+  <div class="app-header">
+    <h1><i data-lucide="message-square"></i> ChatMe</h1>
+    <div class="my-id-badge" onclick="copyMyId()" title="Tekan untuk salin ID">
+      ID: <span id="my-pin-display">------</span> <i data-lucide="copy" style="width:11px; height:11px;"></i>
+    </div>
+  </div>
+
+  <div class="controls-card">
+    <div class="input-group">
+      <input type="text" id="target-pin" placeholder="ID Peranti Rakan...">
+      <button class="btn btn-accent" onclick="connectToPeer()">
+        <i data-lucide="wifi"></i> <span>Sambung</span>
+      </button>
+      <button class="btn btn-icon" title="Simpan Kontak" onclick="saveCurrentContact()">
+        <i data-lucide="user-plus"></i>
+      </button>
+    </div>
+
+    <div class="input-group">
+      <input type="password" id="secret-key" placeholder="Kunci Penyulitan (Password Sembang)..." onchange="reloadCurrentChat()">
+    </div>
+
+    <div class="contacts-bar" id="contacts-bar"></div>
+  </div>
+
+  <div class="status-bar">
+    <span class="status-text" id="connection-status">Mod: Terputus</span>
+    <button class="clear-btn" onclick="clearCurrentChatHistory()">
+      <i data-lucide="trash-2"></i> <span>Padam Chat</span>
+    </button>
+  </div>
+
+  <div class="chat-window" id="chat-window">
+    <div class="empty-state" id="empty-state">
+      Masukkan ID rakan atau pilih kontak untuk mula bersembang secara selamat.
+    </div>
+  </div>
+
+  <div class="chat-input-bar">
+    <!-- INPUT GAMBAR TERSEMBUNYI -->
+    <input type="file" id="image-input" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+    <button class="btn btn-icon" style="background: var(--bg); color: var(--text-main);" title="Hantar Gambar" onclick="document.getElementById('image-input').click()">
+      <i data-lucide="image"></i>
+    </button>
+    
+    <input type="text" id="chat-input" placeholder="Taip mesej..." disabled onkeypress="handleKeyPress(event)">
+    <button id="send-btn" class="btn btn-accent btn-icon" disabled onclick="sendMessage()">
+      <i data-lucide="send"></i>
+    </button>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    const peerPrefix = "chatme-p2p-v2-";
+    let myPin = "", peer = null, conn = null, currentActivePin = "";
+
+    const STORAGE_CONTACTS = "chatme_saved_contacts";
+    const STORAGE_CHAT_PREFIX = "chatme_history_";
+
+    function initApp() {
+      myPin = localStorage.getItem('chatme_my_pin') || generateSecureId();
+      localStorage.setItem('chatme_my_pin', myPin);
+      document.getElementById('my-pin-display').innerText = myPin;
+
+      peer = new Peer(peerPrefix + myPin);
+      peer.on('open', () => updateStatus("Sedia untuk berhubung."));
+      peer.on('connection', (c) => {
+        conn = c;
+        currentActivePin = c.peer.replace(peerPrefix, '');
+        document.getElementById('target-pin').value = currentActivePin;
+        setupConnectionListeners();
+        enableChatInput();
+        updateStatus("Tersambung: " + currentActivePin);
+        loadChatHistory(currentActivePin);
+      });
+      peer.on('error', (err) => updateStatus("Ralat: " + err.type));
+      renderContacts();
+    }
+
+    function generateSecureId() {
+      return (crypto && crypto.randomUUID) ? crypto.randomUUID().substring(0, 8) : Math.random().toString(36).substring(2, 10);
+    }
+
+    function copyMyId() {
+      navigator.clipboard.writeText(myPin).then(() => alert("ID anda disalin: " + myPin));
+    }
+
+    function connectToPeer(pinToConnect = null) {
+      const pin = pinToConnect || document.getElementById('target-pin').value.trim();
+      if (!pin) return alert("Sila masukkan ID yang sah!");
+      currentActivePin = pin;
+      updateStatus("Menghubungi ID: " + pin + "...");
+      conn = peer.connect(peerPrefix + pin);
+      setupConnectionListeners();
+      loadChatHistory(pin);
+    }
+
+    function setupConnectionListeners() {
+      conn.on('open', () => { enableChatInput(); updateStatus("Tersambung: " + currentActivePin); });
+      conn.on('data', (data) => {
+        if (data.type === 'chat' || data.type === 'image') {
+          saveAndDisplayMessage(data.payload, data.type, 'received', currentActivePin);
+        }
+      });
+      conn.on('close', () => { disableChatInput(); updateStatus("Sambungan terputus."); });
+      conn.on('error', () => { disableChatInput(); updateStatus("Ralat sambungan."); });
+    }
+
+    function encryptData(dataStr, secretKey) {
+      if (!secretKey) return dataStr;
+      return "ENC:" + CryptoJS.AES.encrypt(dataStr, secretKey).toString();
+    }
+
+    function decryptData(cipherText, secretKey) {
+      if (!cipherText.startsWith("ENC:")) return cipherText;
+      if (!secretKey) return "[Kandungan Terkunci - Masukkan Kunci Penyulitan]";
+      try {
+        const decrypted = CryptoJS.AES.decrypt(cipherText.replace("ENC:", ""), secretKey).toString(CryptoJS.enc.Utf8);
+        return decrypted || "[Kunci Penyulitan Salah]";
+      } catch (e) {
+        return "[Kunci Penyulitan Salah]";
+      }
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      const secretKey = document.getElementById('secret-key').value;
+      if (!text || !conn) return;
+
+      const payload = encryptData(text, secretKey);
+      conn.send({ type: 'chat', payload });
+      saveAndDisplayMessage(payload, 'chat', 'sent', currentActivePin);
+      input.value = '';
+    }
+
+    function handleImageUpload(e) {
+      const file = e.target.files[0];
+      if (!file || !conn) return;
+
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Saiz gambar melebihi 2MB. Sila pilih gambar yang lebih kecil.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const base64Img = evt.target.result;
+        const secretKey = document.getElementById('secret-key').value;
+        const payload = encryptData(base64Img, secretKey);
+
+        conn.send({ type: 'image', payload });
+        saveAndDisplayMessage(payload, 'image', 'sent', currentActivePin);
+      };
+      reader.readAsDataURL(file);
+      e.target.value = ''; // Reset input
+    }
+
+    function handleKeyPress(e) { if (e.key === 'Enter') sendMessage(); }
+
+    function saveAndDisplayMessage(payload, msgType, direction, pin) {
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const msgObj = { payload, msgType, direction, time: timeStr };
+
+      const historyKey = STORAGE_CHAT_PREFIX + pin;
+      let history = JSON.parse(localStorage.getItem(historyKey) || "[]");
+      history.push(msgObj);
+      localStorage.setItem(historyKey, JSON.stringify(history));
+
+      if (pin === currentActivePin) renderSingleMessage(msgObj);
+    }
+
+    function reloadCurrentChat() { if (currentActivePin) loadChatHistory(currentActivePin); }
+
+    function loadChatHistory(pin) {
+      const chatWindow = document.getElementById('chat-window');
+      chatWindow.innerHTML = '';
+      const history = JSON.parse(localStorage.getItem(STORAGE_CHAT_PREFIX + pin) || "[]");
+
+      if (history.length === 0) {
+        chatWindow.innerHTML = `<div class="empty-state">Tiada sejarah perbualan dengan ${pin}.</div>`;
+        return;
+      }
+      history.forEach(msg => renderSingleMessage(msg));
+    }
+
+    function renderSingleMessage(msg) {
+      const chatWindow = document.getElementById('chat-window');
+      const emptyState = document.getElementById('empty-state');
+      if (emptyState) emptyState.remove();
+
+      const secretKey = document.getElementById('secret-key').value;
+      const decryptedData = decryptData(msg.payload, secretKey);
+
+      const bubble = document.createElement('div');
+      bubble.className = `chat-bubble ${msg.direction}`;
+
+      if (msg.msgType === 'image') {
+        if (decryptedData.startsWith("data:image")) {
+          const imgNode = document.createElement('img');
+          imgNode.src = decryptedData;
+          imgNode.className = 'chat-img-content';
+          imgNode.onclick = () => window.open(decryptedData, '_blank');
+          bubble.appendChild(imgNode);
+        } else {
+          const errNode = document.createElement('div');
+          errNode.className = 'chat-text-content';
+          errNode.textContent = decryptedData;
+          bubble.appendChild(errNode);
+        }
+      } else {
+        const textNode = document.createElement('div');
+        textNode.className = 'chat-text-content';
+        textNode.textContent = decryptedData;
+        bubble.appendChild(textNode);
+      }
+
+      const metaNode = document.createElement('div');
+      metaNode.className = 'chat-meta';
+      metaNode.innerHTML = `<span>${msg.time}</span>${msg.direction === 'sent' ? '<i data-lucide="check-check"></i>' : ''}`;
+      bubble.appendChild(metaNode);
+
+      chatWindow.appendChild(bubble);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+      lucide.createIcons();
+    }
+
+    function clearCurrentChatHistory() {
+      if (!currentActivePin) return;
+      if (confirm(`Padam sejarah chat bagi ID ${currentActivePin}?`)) {
+        localStorage.removeItem(STORAGE_CHAT_PREFIX + currentActivePin);
+        loadChatHistory(currentActivePin);
+      }
+    }
+
+    function saveCurrentContact() {
+      const pin = document.getElementById('target-pin').value.trim();
+      if (!pin) return alert("Masukkan ID yang sah.");
+      const name = prompt("Nama kontak:", "Rakan " + pin);
+      if (!name) return;
+
+      let contacts = JSON.parse(localStorage.getItem(STORAGE_CONTACTS) || "[]");
+      const idx = contacts.findIndex(c => c.pin === pin);
+      if (idx >= 0) contacts[idx].name = name;
+      else contacts.push({ name, pin });
+
+      localStorage.setItem(STORAGE_CONTACTS, JSON.stringify(contacts));
+      renderContacts();
+    }
+
+    function deleteContact(pinToDelete, event) {
+      event.stopPropagation();
+      let contacts = JSON.parse(localStorage.getItem(STORAGE_CONTACTS) || "[]");
+      if (confirm("Padam kontak ini?")) {
+        contacts = contacts.filter(c => c.pin !== pinToDelete);
+        localStorage.setItem(STORAGE_CONTACTS, JSON.stringify(contacts));
+        renderContacts();
+      }
+    }
+
+    function renderContacts() {
+      const contactsBar = document.getElementById('contacts-bar');
+      const contacts = JSON.parse(localStorage.getItem(STORAGE_CONTACTS) || "[]");
+      contactsBar.innerHTML = '';
+      if (contacts.length === 0) {
+        contactsBar.innerHTML = '<span style="font-size:11px; color:var(--text-muted);">Tiada kontak disimpan.</span>';
+        return;
+      }
+
+      contacts.forEach(c => {
+        const chip = document.createElement('div');
+        chip.className = `contact-chip ${c.pin === currentActivePin ? 'active' : ''}`;
+        
+        const spanNode = document.createElement('span');
+        spanNode.textContent = c.name;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-contact-btn';
+        delBtn.innerHTML = '<i data-lucide="x" style="width:12px; height:12px;"></i>';
+        delBtn.onclick = (e) => deleteContact(c.pin, e);
+
+        chip.appendChild(spanNode);
+        chip.appendChild(delBtn);
+
+        chip.onclick = () => {
+          document.getElementById('target-pin').value = c.pin;
+          connectToPeer(c.pin);
+          renderContacts();
+        };
+        contactsBar.appendChild(chip);
+      });
+      lucide.createIcons();
+    }
+
+    function enableChatInput() {
+      document.getElementById('chat-input').disabled = false;
+      document.getElementById('send-btn').disabled = false;
+    }
+
+    function disableChatInput() {
+      document.getElementById('chat-input').disabled = true;
+      document.getElementById('send-btn').disabled = true;
+    }
+
+    function updateStatus(msg) {
+      document.getElementById('connection-status').innerText = msg;
+    }
+
+    initApp();
+  </script>
+</body>
+</html>
 
